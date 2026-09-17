@@ -43,6 +43,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p=Path('app/src/main/java/com/example/modernlauncher/MainActivity.kt')
           s=p.read_text()
           s=s.replace('import androidx.compose.runtime.composed\n','')
@@ -56,25 +57,26 @@ jobs:
           if 'import androidx.compose.foundation.horizontalScroll' not in s:
               s=s.replace('import androidx.compose.foundation.verticalScroll\n','import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll\n')
           s=s.replace('private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)','@Composable private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)')
-          for old,new in {
-              'setIconSize(': 'updateIconSize(',
-              'setIconShape(': 'updateIconShape(',
-              'setAnimationValue(': 'updateAnimationValue(',
-              'setDuration(': 'updateDuration(',
-              'setType(': 'updateType(',
-              'setPerformance(': 'updatePerformance(',
-              'setProductive(': 'updateProductive(',
-              'setStudy(': 'updateStudy(',
-              'setCurrentHomePage(': 'updateCurrentHomePage(',
-              'setSettingsPage(': 'updateSettingsPage(',
-              'setDrawerListMode(': 'updateDrawerListMode(',
-              'setDrawerCategory(': 'updateDrawerCategory(',
-          }.items():
-              s=s.replace(old,new)
+          renames={
+              'setIconSize':'updateIconSize',
+              'setIconShape':'updateIconShape',
+              'setAnimationValue':'updateAnimationValue',
+              'setAnimationDuration':'updateAnimationDuration',
+              'setAnimationType':'updateAnimationType',
+              'setSettingsPage':'updateSettingsPage',
+              'setDrawerListMode':'updateDrawerListMode',
+              'setDrawerCategory':'updateDrawerCategory',
+              'setCurrentHomePage':'updateCurrentHomePage',
+              'setPerformanceMode':'updatePerformanceMode',
+              'setProductiveMode':'updateProductiveMode',
+              'setStudyMode':'updateStudyMode',
+          }
+          for old,new in renames.items():
+              s=re.sub(r'(?<![A-Za-z0-9_])'+re.escape(old)+r'(?=\()',new,s)
           p.write_text(s)
           print('Patched Kotlin source')
           PY
-          grep -nE 'fun (update|set)(IconSize|IconShape|AnimationValue|Duration|Type|Performance|Productive|Study|CurrentHomePage|SettingsPage|DrawerListMode|DrawerCategory)' app/src/main/java/com/example/modernlauncher/MainActivity.kt || true
+          grep -nE 'fun (setIcon|setAnimation|setSettingsPage|setDrawer|setCurrentHomePage|setPerformanceMode|setProductiveMode|setStudyMode)' app/src/main/java/com/example/modernlauncher/MainActivity.kt || true
       - name: Update compileSdk to 36
         working-directory: ${{ env.PROJECT_DIR }}
         run: sed -i 's/compileSdk = 35/compileSdk = 36/' app/build.gradle.kts
