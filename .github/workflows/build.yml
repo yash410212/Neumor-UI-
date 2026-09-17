@@ -57,8 +57,9 @@ jobs:
               s=s.replace('import androidx.compose.foundation.verticalScroll\n','import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll\n')
           s=s.replace('private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)','@Composable private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)')
           p.write_text(s)
-          grep -n 'clickableWithoutRipple' app/src/main/java/com/example/modernlauncher/MainActivity.kt
+          print('Patched Kotlin source')
           PY
+          grep -n 'clickableWithoutRipple' app/src/main/java/com/example/modernlauncher/MainActivity.kt
       - name: Update compileSdk to 36
         working-directory: ${{ env.PROJECT_DIR }}
         run: sed -i 's/compileSdk = 35/compileSdk = 36/' app/build.gradle.kts
