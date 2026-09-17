@@ -11,82 +11,63 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Extract Android project ZIP
         run: |
           rm -rf build-src
           mkdir -p build-src
           unzip -q ModernLauncher_TecnoSpark8C_VivoY11_FINAL_98_PERCENT_POLISH.zip -d build-src
-          echo "Extracted files:"
-          find build-src -maxdepth 3 -type f | sort | head -200
-
       - name: Locate Gradle project
         run: |
           PROJECT_DIR=$(find build-src -type f -name gradlew -print -quit | xargs -r dirname)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: gradlew was not found in the uploaded ZIP."
-            exit 1
-          fi
+          test -n "$PROJECT_DIR" || { echo 'ERROR: gradlew not found'; exit 1; }
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Using project: $PROJECT_DIR"
-
       - name: Install Android SDK 36
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
-
       - name: Install Gradle 8.13
         run: |
           curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip
           rm -rf /opt/gradle-8.13
           unzip -q /tmp/gradle.zip -d /opt
-          /opt/gradle-8.13/bin/gradle --version
-
-      - name: Patch Kotlin source for current Compose/Kotlin APIs
+      - name: Patch Kotlin source
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('app/src/main/java/com/example/modernlauncher/MainActivity.kt')
-          s = p.read_text()
-          s = s.replace('import androidx.compose.runtime.composed\n', '')
-          s = s.replace('decodeWidgets(p.getString("widgets_home", ""))', 'decodeWidgets(p.getString("widgets_home", "") ?: "")')
-          s = s.replace('override fun onNewIntent(intent:Intent?){ super.onNewIntent(intent); setIntent(intent) }', 'override fun onNewIntent(intent:Intent){ super.onNewIntent(intent); setIntent(intent) }')
-          s = s.replace('onAddWidget={activity?.let { { it.pickWidget() } } ?: {}}', 'onAddWidget={activity?.pickWidget()}')
-          s = s.replace('@Composable private fun ThemeChoice(', '@Composable private fun RowScope.ThemeChoice(')
-          s = s.replace('val gap=with(density){8.dp.toPx()}\n                    val cell=((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)', 'val gap=with(density){8.dp.toPx()}\n                    val cell=with(density){((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)}')
-          s = s.replace('val dy=(displayIndex/cols-index/cols)*(86.dp.value*density+gap) + if(isDragging) folderOffset.y else 0f', 'val rowHeight=with(density){86.dp.toPx()}\n                            val dy=(displayIndex/cols-index/cols)*(rowHeight+gap) + if(isDragging) folderOffset.y else 0f')
-          s = s.replace('val rs=(folderOffset.y/(86.dp.value*density+gap)).roundToInt()', 'val rs=(folderOffset.y/(rowHeight+gap)).roundToInt()')
-          s = s.replace('import androidx.compose.foundation.verticalScroll\n', 'import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll\n')
+          p=Path('app/src/main/java/com/example/modernlauncher/MainActivity.kt')
+          s=p.read_text()
+          s=s.replace('import androidx.compose.runtime.composed\n','')
+          s=s.replace('decodeWidgets(p.getString("widgets_home", ""))','decodeWidgets(p.getString("widgets_home", "") ?: "")')
+          s=s.replace('override fun onNewIntent(intent:Intent?){ super.onNewIntent(intent); setIntent(intent) }','override fun onNewIntent(intent:Intent){ super.onNewIntent(intent); setIntent(intent) }')
+          s=s.replace('onAddWidget={activity?.let { { it.pickWidget() } } ?: {}}','onAddWidget={activity?.pickWidget()}')
+          s=s.replace('@Composable private fun ThemeChoice(','@Composable private fun RowScope.ThemeChoice(')
+          s=s.replace('val gap=with(density){8.dp.toPx()}\n                    val cell=((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)','val gap=with(density){8.dp.toPx()}\n                    val cell=with(density){((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)}')
+          s=s.replace('val dy=(displayIndex/cols-index/cols)*(86.dp.value*density+gap) + if(isDragging) folderOffset.y else 0f','val rowHeight=with(density){86.dp.toPx()}\n                            val dy=(displayIndex/cols-index/cols)*(rowHeight+gap) + if(isDragging) folderOffset.y else 0f')
+          s=s.replace('val rs=(folderOffset.y/(86.dp.value*density+gap)).roundToInt()','val rs=(folderOffset.y/(rowHeight+gap)).roundToInt()')
+          if 'import androidx.compose.foundation.horizontalScroll' not in s:
+              s=s.replace('import androidx.compose.foundation.verticalScroll\n','import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll\n')
+          s=s.replace('private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)','@Composable private fun Modifier.clickableWithoutRipple(onClick:()->Unit)=composedClickable(onClick)')
           p.write_text(s)
-          print('Patched:', p)
+          grep -n 'clickableWithoutRipple' app/src/main/java/com/example/modernlauncher/MainActivity.kt
           PY
-          grep -nE 'composed|onNewIntent|onAddWidget|RowScope.ThemeChoice|horizontalScroll|rowHeight|decodeWidgets' app/src/main/java/com/example/modernlauncher/MainActivity.kt
-
       - name: Update compileSdk to 36
         working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          sed -i 's/compileSdk = 35/compileSdk = 36/' app/build.gradle.kts
-          grep -n 'compileSdk' app/build.gradle.kts
-
+        run: sed -i 's/compileSdk = 35/compileSdk = 36/' app/build.gradle.kts
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: /opt/gradle-8.13/bin/gradle assembleDebug --stacktrace --no-daemon
-
       - name: Locate APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: find app/build/outputs/apk -type f -name '*.apk' -print
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
