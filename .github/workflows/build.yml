@@ -40,17 +40,24 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Using project: $PROJECT_DIR"
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x "$PROJECT_DIR/gradlew"
+      - name: Install Gradle 8.13
+        run: |
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip
+          rm -rf /opt/gradle-8.13
+          unzip -q /tmp/gradle.zip -d /opt
+          /opt/gradle-8.13/bin/gradle --version
 
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: /opt/gradle-8.13/bin/gradle assembleDebug --stacktrace --no-daemon
+
+      - name: Locate APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: find app/build/outputs/apk -type f -name '*.apk' -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Neumor-UI-debug-apk
-          path: |
-            ${{ env.PROJECT_DIR }}/app/build/outputs/apk/**/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
