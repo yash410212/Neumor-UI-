@@ -40,12 +40,23 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Using project: $PROJECT_DIR"
 
+      - name: Install Android SDK 36
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+
       - name: Install Gradle 8.13
         run: |
           curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip
           rm -rf /opt/gradle-8.13
           unzip -q /tmp/gradle.zip -d /opt
           /opt/gradle-8.13/bin/gradle --version
+
+      - name: Update compileSdk to 36
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          sed -i 's/compileSdk = 35/compileSdk = 36/' app/build.gradle.kts
+          grep -n 'compileSdk' app/build.gradle.kts
 
       - name: Build debug APK
         working-directory: ${{ env.PROJECT_DIR }}
