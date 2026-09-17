@@ -52,6 +52,27 @@ jobs:
           unzip -q /tmp/gradle.zip -d /opt
           /opt/gradle-8.13/bin/gradle --version
 
+      - name: Patch Kotlin source for current Compose/Kotlin APIs
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/example/modernlauncher/MainActivity.kt')
+          s = p.read_text()
+          s = s.replace('import androidx.compose.runtime.composed\n', '')
+          s = s.replace('decodeWidgets(p.getString("widgets_home", ""))', 'decodeWidgets(p.getString("widgets_home", "") ?: "")')
+          s = s.replace('override fun onNewIntent(intent:Intent?){ super.onNewIntent(intent); setIntent(intent) }', 'override fun onNewIntent(intent:Intent){ super.onNewIntent(intent); setIntent(intent) }')
+          s = s.replace('onAddWidget={activity?.let { { it.pickWidget() } } ?: {}}', 'onAddWidget={activity?.pickWidget()}')
+          s = s.replace('@Composable private fun ThemeChoice(', '@Composable private fun RowScope.ThemeChoice(')
+          s = s.replace('val gap=with(density){8.dp.toPx()}\n                    val cell=((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)', 'val gap=with(density){8.dp.toPx()}\n                    val cell=with(density){((maxWidth.toPx()-gap*(cols-1))/cols).coerceAtLeast(1f)}')
+          s = s.replace('val dy=(displayIndex/cols-index/cols)*(86.dp.value*density+gap) + if(isDragging) folderOffset.y else 0f', 'val rowHeight=with(density){86.dp.toPx()}\n                            val dy=(displayIndex/cols-index/cols)*(rowHeight+gap) + if(isDragging) folderOffset.y else 0f')
+          s = s.replace('val rs=(folderOffset.y/(86.dp.value*density+gap)).roundToInt()', 'val rs=(folderOffset.y/(rowHeight+gap)).roundToInt()')
+          s = s.replace('import androidx.compose.foundation.verticalScroll\n', 'import androidx.compose.foundation.verticalScroll\nimport androidx.compose.foundation.horizontalScroll\n')
+          p.write_text(s)
+          print('Patched:', p)
+          PY
+          grep -nE 'composed|onNewIntent|onAddWidget|RowScope.ThemeChoice|horizontalScroll|rowHeight|decodeWidgets' app/src/main/java/com/example/modernlauncher/MainActivity.kt
+
       - name: Update compileSdk to 36
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
